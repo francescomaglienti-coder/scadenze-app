@@ -1,0 +1,6 @@
+https://supabase.com/dashboard/project/zhsawdcayttclypfdjqr/settings/general
+
+project url: https://zhsawdcayttclypfdjqr.supabase.co
+
+Publishable key:  sb_publishable_leIFGfTwe3YIVgM63w28NQ_EocdYZp4
+
