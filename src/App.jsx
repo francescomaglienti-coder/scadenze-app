@@ -10,6 +10,8 @@ const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
 
 function App() {
   const [session, setSession] = useState(null)
+  const [profilo, setProfilo] = useState(null)
+  const [controlloApprovazione, setControlloApprovazione] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mostraPassword, setMostraPassword] = useState(false)
@@ -36,7 +38,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (session) caricaScadenze()
+    if (session) controllaApprovazione()
   }, [session])
 
   async function accedi() {
@@ -83,6 +85,30 @@ function App() {
     await supabase.auth.signOut()
     setSession(null)
     setScadenze([])
+  }
+
+  async function controllaApprovazione() {
+    setControlloApprovazione(true)
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('approved')
+      .eq('id', session.user.id)
+      .single()
+
+    if (error) {
+      alert('Errore controllo approvazione: ' + error.message)
+      setControlloApprovazione(false)
+      return
+    }
+
+    setProfilo(data)
+
+    if (data.approved) {
+      caricaScadenze()
+    }
+
+    setControlloApprovazione(false)
   }
 
   async function caricaScadenze() {
@@ -311,6 +337,34 @@ function App() {
           <button onClick={accedi} style={styles.bottonePrimario}>Accedi</button>
           <button onClick={registrati} style={styles.bottoneSecondario}>Registrati</button>
           <button onClick={resetPassword} style={styles.bottoneSecondario}>Reset password</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (controlloApprovazione) {
+    return (
+      <div style={styles.pagina}>
+        <div style={styles.card}>
+          <h1 style={styles.titolo}>Controllo account</h1>
+          <p style={styles.testo}>Sto verificando se il tuo account è approvato...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (profilo && !profilo.approved) {
+    return (
+      <div style={styles.pagina}>
+        <div style={styles.card}>
+          <h1 style={styles.titolo}>Account in attesa di approvazione</h1>
+          <p style={styles.testo}>
+            Il tuo account è stato creato, ma deve essere approvato prima di usare lo scadenzario.
+          </p>
+
+          <button onClick={esci} style={styles.bottoneEsci}>
+            Esci dall’account
+          </button>
         </div>
       </div>
     )
