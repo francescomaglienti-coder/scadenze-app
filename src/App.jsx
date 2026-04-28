@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 
+const mesiItaliani = [
+  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+]
+
 function App() {
   const [session, setSession] = useState(null)
   const [email, setEmail] = useState('')
@@ -13,10 +18,12 @@ function App() {
   const [note, setNote] = useState('')
   const [idModifica, setIdModifica] = useState(null)
 
+  const [vista, setVista] = useState('lista')
+  const [annoStampa, setAnnoStampa] = useState(new Date().getFullYear())
+  const [mesiDaStampare, setMesiDaStampare] = useState([new Date().getMonth()])
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-    })
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
@@ -100,11 +107,7 @@ function App() {
     if (idModifica) {
       const { error } = await supabase
         .from('scadenze')
-        .update({
-          titolo,
-          data: dataScadenza,
-          note
-        })
+        .update({ titolo, data: dataScadenza, note })
         .eq('id', idModifica)
 
       if (error) {
@@ -137,6 +140,7 @@ function App() {
     setDataScadenza(item.data)
     setNote(item.note || '')
     setIdModifica(item.id)
+    setVista('lista')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -164,10 +168,7 @@ function App() {
   async function eliminaScadenza(id) {
     if (!confirm('Vuoi eliminare questa scadenza?')) return
 
-    const { error } = await supabase
-      .from('scadenze')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from('scadenze').delete().eq('id', id)
 
     if (error) {
       alert('Errore eliminazione: ' + error.message)
@@ -209,6 +210,45 @@ function App() {
     return styles.scadenzaNormale
   }
 
+  function dataItaliana(dataIso) {
+    return new Date(dataIso).toLocaleDateString('it-IT')
+  }
+
+  function cambiaSelezioneMese(mese) {
+    if (mesiDaStampare.includes(mese)) {
+      setMesiDaStampare(mesiDaStampare.filter(m => m !== mese))
+    } else {
+      setMesiDaStampare([...mesiDaStampare, mese].sort((a, b) => a - b))
+    }
+  }
+
+  function selezionaTuttiIMesi() {
+    setMesiDaStampare([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+  }
+
+  function stampaMesiSelezionati() {
+    if (mesiDaStampare.length === 0) {
+      alert('Seleziona almeno un mese')
+      return
+    }
+
+    setVista('stampa-mesi')
+    setTimeout(() => window.print(), 300)
+  }
+
+  function stampaAnnoIntero() {
+    setMesiDaStampare([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    setVista('stampa-anno')
+    setTimeout(() => window.print(), 300)
+  }
+
+  function scadenzeDelMese(anno, mese) {
+    return scadenze.filter(item => {
+      const d = new Date(item.data)
+      return d.getFullYear() === Number(anno) && d.getMonth() === mese
+    })
+  }
+
   if (!session) {
     return (
       <div style={styles.pagina}>
@@ -216,13 +256,7 @@ function App() {
           <h1 style={styles.titolo}>Le mie scadenze</h1>
           <p style={styles.testo}>Accedi con email e password.</p>
 
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            style={styles.input}
-          />
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={styles.input} />
 
           <input
             type={mostraPassword ? 'text' : 'password'}
@@ -232,25 +266,13 @@ function App() {
             style={styles.input}
           />
 
-          <button
-            type="button"
-            onClick={() => setMostraPassword(!mostraPassword)}
-            style={styles.bottoneSecondario}
-          >
+          <button type="button" onClick={() => setMostraPassword(!mostraPassword)} style={styles.bottoneSecondario}>
             {mostraPassword ? 'Nascondi password' : 'Mostra password'}
           </button>
 
-          <button onClick={accedi} style={styles.bottonePrimario}>
-            Accedi
-          </button>
-
-          <button onClick={registrati} style={styles.bottoneSecondario}>
-            Registrati
-          </button>
-
-          <button onClick={resetPassword} style={styles.bottoneSecondario}>
-            Reset password
-          </button>
+          <button onClick={accedi} style={styles.bottonePrimario}>Accedi</button>
+          <button onClick={registrati} style={styles.bottoneSecondario}>Registrati</button>
+          <button onClick={resetPassword} style={styles.bottoneSecondario}>Reset password</button>
         </div>
       </div>
     )
@@ -258,8 +280,35 @@ function App() {
 
   return (
     <div style={styles.pagina}>
+      <style>
+        {`
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+
+            body {
+              margin: 0;
+              background: white;
+            }
+
+            .pagina-stampa {
+              box-shadow: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+
+            .mese-stampa {
+              break-inside: avoid;
+              page-break-inside: avoid;
+              margin-bottom: 25px;
+            }
+          }
+        `}
+      </style>
+
       <div style={styles.contenitore}>
-        <div style={styles.card}>
+        <div style={styles.card} className="no-print">
           <h1 style={styles.titolo}>Le mie scadenze</h1>
           <p style={styles.testo}>Accesso effettuato: {session.user.email}</p>
 
@@ -268,30 +317,15 @@ function App() {
           </button>
         </div>
 
-        <div style={styles.card}>
+        <div style={styles.card} className="no-print">
           <h2>{idModifica ? 'Modifica scadenza' : 'Aggiungi scadenza'}</h2>
 
           <form onSubmit={salvaScadenza}>
-            <input
-              placeholder="Nome scadenza"
-              value={titolo}
-              onChange={e => setTitolo(e.target.value)}
-              style={styles.input}
-            />
+            <input placeholder="Nome scadenza" value={titolo} onChange={e => setTitolo(e.target.value)} style={styles.input} />
 
-            <input
-              type="date"
-              value={dataScadenza}
-              onChange={e => setDataScadenza(e.target.value)}
-              style={styles.input}
-            />
+            <input type="date" value={dataScadenza} onChange={e => setDataScadenza(e.target.value)} style={styles.input} />
 
-            <textarea
-              placeholder="Note"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              style={styles.textarea}
-            />
+            <textarea placeholder="Note" value={note} onChange={e => setNote(e.target.value)} style={styles.textarea} />
 
             <button type="submit" style={styles.bottonePrimario}>
               {idModifica ? 'Salva modifica' : 'Aggiungi'}
@@ -305,39 +339,145 @@ function App() {
           </form>
         </div>
 
-        {scadenze.length === 0 && (
-          <div style={styles.card}>
-            <p>Nessuna scadenza inserita.</p>
+        <div style={styles.card} className="no-print">
+          <button onClick={() => setVista('lista')} style={vista === 'lista' ? styles.bottonePrimario : styles.bottoneSecondario}>
+            Vista lista
+          </button>
+
+          <button onClick={() => setVista('stampa')} style={vista === 'stampa' ? styles.bottonePrimario : styles.bottoneSecondario}>
+            Stampa PDF
+          </button>
+        </div>
+
+        {vista === 'lista' && (
+          <div>
+            {scadenze.length === 0 && (
+              <div style={styles.card}>
+                <p>Nessuna scadenza inserita.</p>
+              </div>
+            )}
+
+            {scadenze.map(item => (
+              <div key={item.id} style={{ ...styles.scadenza, ...stileScadenza(item) }}>
+                <h3 style={{ textDecoration: item.completata ? 'line-through' : 'none' }}>
+                  {item.titolo}
+                </h3>
+
+                <p>Data: {dataItaliana(item.data)}</p>
+                {item.note && <p>Note: {item.note}</p>}
+                <p><strong>{testoScadenza(item)}</strong></p>
+
+                <button onClick={() => cambiaStato(item)} style={styles.bottoneSecondario}>
+                  {item.completata ? 'Segna da fare' : 'Segna completata'}
+                </button>
+
+                <button onClick={() => preparaModifica(item)} style={styles.bottoneSecondario}>
+                  Modifica
+                </button>
+
+                <button onClick={() => eliminaScadenza(item.id)} style={styles.bottoneElimina}>
+                  Elimina
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
-        {scadenze.map(item => (
-          <div key={item.id} style={{ ...styles.scadenza, ...stileScadenza(item) }}>
-            <h3 style={{ textDecoration: item.completata ? 'line-through' : 'none' }}>
-              {item.titolo}
-            </h3>
+        {vista === 'stampa' && (
+          <div style={styles.card} className="no-print">
+            <h2>Stampa scadenze</h2>
 
-            <p>Data: {item.data}</p>
+            <label style={styles.label}>Anno da stampare</label>
+            <input
+              type="number"
+              value={annoStampa}
+              onChange={e => setAnnoStampa(e.target.value)}
+              style={styles.input}
+            />
 
-            {item.note && <p>Note: {item.note}</p>}
+            <p>Scegli i mesi da stampare:</p>
 
-            <p>
-              <strong>{testoScadenza(item)}</strong>
-            </p>
+            <div style={styles.grigliaMesi}>
+              {mesiItaliani.map((mese, index) => (
+                <label key={mese} style={styles.checkMese}>
+                  <input
+                    type="checkbox"
+                    checked={mesiDaStampare.includes(index)}
+                    onChange={() => cambiaSelezioneMese(index)}
+                  />
+                  {mese}
+                </label>
+              ))}
+            </div>
 
-            <button onClick={() => cambiaStato(item)} style={styles.bottoneSecondario}>
-              {item.completata ? 'Segna da fare' : 'Segna completata'}
+            <button onClick={stampaMesiSelezionati} style={styles.bottonePrimario}>
+              Stampa mesi selezionati
             </button>
 
-            <button onClick={() => preparaModifica(item)} style={styles.bottoneSecondario}>
-              Modifica
+            <button onClick={stampaAnnoIntero} style={styles.bottoneSecondario}>
+              Stampa intero anno
             </button>
 
-            <button onClick={() => eliminaScadenza(item.id)} style={styles.bottoneElimina}>
-              Elimina
+            <button onClick={selezionaTuttiIMesi} style={styles.bottoneSecondario}>
+              Seleziona tutti i mesi
+            </button>
+
+            <button onClick={() => setMesiDaStampare([])} style={styles.bottoneSecondario}>
+              Deseleziona tutti
             </button>
           </div>
-        ))}
+        )}
+
+        {(vista === 'stampa-mesi' || vista === 'stampa-anno') && (
+          <div style={styles.stampaArea} className="pagina-stampa">
+            <div className="no-print">
+              <button onClick={() => setVista('stampa')} style={styles.bottoneSecondario}>
+                Torna alla scelta stampa
+              </button>
+
+              <button onClick={() => window.print()} style={styles.bottonePrimario}>
+                Stampa di nuovo
+              </button>
+            </div>
+
+            <h1 style={styles.titoloStampa}>Scadenze {annoStampa}</h1>
+
+            {mesiDaStampare.map(mese => {
+              const elementi = scadenzeDelMese(annoStampa, mese)
+
+              return (
+                <div key={mese} className="mese-stampa" style={styles.meseStampa}>
+                  <h2 style={styles.nomeMeseStampa}>{mesiItaliani[mese]} {annoStampa}</h2>
+
+                  {elementi.length === 0 ? (
+                    <p>Nessuna scadenza.</p>
+                  ) : (
+                    <table style={styles.tabella}>
+                      <thead>
+                        <tr>
+                          <th style={styles.th}>Data</th>
+                          <th style={styles.th}>Scadenza</th>
+                          <th style={styles.th}>Note</th>
+                          <th style={styles.th}>Stato</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {elementi.map(item => (
+                          <tr key={item.id}>
+                            <td style={styles.td}>{dataItaliana(item.data)}</td>
+                            <td style={styles.td}>{item.titolo}</td>
+                            <td style={styles.td}>{item.note || '-'}</td>
+                            <td style={styles.td}>{item.completata ? 'Completata' : 'Da fare'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -351,7 +491,7 @@ const styles = {
     fontFamily: 'Arial, sans-serif'
   },
   contenitore: {
-    maxWidth: 700,
+    maxWidth: 800,
     margin: '0 auto'
   },
   card: {
@@ -367,6 +507,11 @@ const styles = {
   },
   testo: {
     color: '#4b5563'
+  },
+  label: {
+    display: 'block',
+    marginBottom: 8,
+    fontWeight: 'bold'
   },
   input: {
     width: '100%',
@@ -451,6 +596,55 @@ const styles = {
     background: '#f9fafb',
     borderColor: '#d1d5db',
     color: '#6b7280'
+  },
+  grigliaMesi: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+    gap: 10,
+    marginBottom: 20
+  },
+  checkMese: {
+    background: '#f9fafb',
+    padding: 12,
+    borderRadius: 10,
+    border: '1px solid #e5e7eb',
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center'
+  },
+  stampaArea: {
+    background: 'white',
+    padding: 25,
+    borderRadius: 16,
+    boxShadow: '0 10px 25px rgba(0,0,0,0.08)'
+  },
+  titoloStampa: {
+    textAlign: 'center',
+    marginTop: 0,
+    marginBottom: 25
+  },
+  meseStampa: {
+    marginBottom: 30
+  },
+  nomeMeseStampa: {
+    borderBottom: '2px solid #111827',
+    paddingBottom: 8
+  },
+  tabella: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    marginTop: 10
+  },
+  th: {
+    border: '1px solid #d1d5db',
+    padding: 8,
+    background: '#f3f4f6',
+    textAlign: 'left'
+  },
+  td: {
+    border: '1px solid #d1d5db',
+    padding: 8,
+    verticalAlign: 'top'
   }
 }
 
