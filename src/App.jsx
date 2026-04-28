@@ -6,6 +6,8 @@ const mesiItaliani = [
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
 ]
 
+const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+
 function App() {
   const [session, setSession] = useState(null)
   const [email, setEmail] = useState('')
@@ -19,6 +21,7 @@ function App() {
   const [idModifica, setIdModifica] = useState(null)
 
   const [vista, setVista] = useState('lista')
+  const [meseCorrente, setMeseCorrente] = useState(new Date())
   const [annoStampa, setAnnoStampa] = useState(new Date().getFullYear())
   const [mesiDaStampare, setMesiDaStampare] = useState([new Date().getMonth()])
 
@@ -249,6 +252,41 @@ function App() {
     })
   }
 
+  function cambiaMese(numero) {
+    const nuovaData = new Date(meseCorrente)
+    nuovaData.setMonth(nuovaData.getMonth() + numero)
+    setMeseCorrente(nuovaData)
+  }
+
+  function dataFormatoISO(data) {
+    const anno = data.getFullYear()
+    const mese = String(data.getMonth() + 1).padStart(2, '0')
+    const giorno = String(data.getDate()).padStart(2, '0')
+    return `${anno}-${mese}-${giorno}`
+  }
+
+  function giorniDelCalendario() {
+    const anno = meseCorrente.getFullYear()
+    const mese = meseCorrente.getMonth()
+    const primoGiorno = new Date(anno, mese, 1)
+    const ultimoGiorno = new Date(anno, mese + 1, 0)
+
+    let giornoSettimana = primoGiorno.getDay()
+    if (giornoSettimana === 0) giornoSettimana = 7
+
+    const giorni = []
+
+    for (let i = 0; i < giornoSettimana - 1; i++) {
+      giorni.push(null)
+    }
+
+    for (let giorno = 1; giorno <= ultimoGiorno.getDate(); giorno++) {
+      giorni.push(new Date(anno, mese, giorno))
+    }
+
+    return giorni
+  }
+
   if (!session) {
     return (
       <div style={styles.pagina}>
@@ -344,6 +382,10 @@ function App() {
             Vista lista
           </button>
 
+          <button onClick={() => setVista('calendario')} style={vista === 'calendario' ? styles.bottonePrimario : styles.bottoneSecondario}>
+            Vista calendario
+          </button>
+
           <button onClick={() => setVista('stampa')} style={vista === 'stampa' ? styles.bottonePrimario : styles.bottoneSecondario}>
             Stampa PDF
           </button>
@@ -380,6 +422,51 @@ function App() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {vista === 'calendario' && (
+          <div style={styles.card}>
+            <div style={styles.rigaCalendario} className="no-print">
+              <button onClick={() => cambiaMese(-1)} style={styles.bottoneMini}>
+                Mese precedente
+              </button>
+
+              <h2 style={styles.titoloCalendario}>
+                {meseCorrente.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+              </h2>
+
+              <button onClick={() => cambiaMese(1)} style={styles.bottoneMini}>
+                Mese successivo
+              </button>
+            </div>
+
+            <div style={styles.grigliaSettimana}>
+              {giorniSettimana.map(giorno => (
+                <div key={giorno} style={styles.nomeGiorno}>{giorno}</div>
+              ))}
+            </div>
+
+            <div style={styles.grigliaCalendario}>
+              {giorniDelCalendario().map((giorno, index) => {
+                if (!giorno) return <div key={index} style={styles.giornoVuoto}></div>
+
+                const iso = dataFormatoISO(giorno)
+                const eventi = scadenze.filter(item => item.data === iso)
+
+                return (
+                  <div key={iso} style={styles.giornoCalendario}>
+                    <strong>{giorno.getDate()}</strong>
+
+                    {eventi.map(item => (
+                      <div key={item.id} style={styles.eventoCalendario}>
+                        {item.titolo}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -491,7 +578,7 @@ const styles = {
     fontFamily: 'Arial, sans-serif'
   },
   contenitore: {
-    maxWidth: 800,
+    maxWidth: 900,
     margin: '0 auto'
   },
   card: {
@@ -553,6 +640,13 @@ const styles = {
     fontWeight: 'bold',
     cursor: 'pointer',
     marginBottom: 10
+  },
+  bottoneMini: {
+    padding: 10,
+    border: 0,
+    borderRadius: 10,
+    background: '#e5e7eb',
+    cursor: 'pointer'
   },
   bottoneEsci: {
     padding: 12,
@@ -645,6 +739,54 @@ const styles = {
     border: '1px solid #d1d5db',
     padding: 8,
     verticalAlign: 'top'
+  },
+  rigaCalendario: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20
+  },
+  titoloCalendario: {
+    margin: 0,
+    textTransform: 'capitalize',
+    textAlign: 'center'
+  },
+  grigliaSettimana: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(7, 1fr)',
+    gap: 6,
+    marginBottom: 6
+  },
+  nomeGiorno: {
+    textAlign: 'center',
+    fontWeight: 'bold',
+    padding: 8
+  },
+  grigliaCalendario: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(7, 1fr)',
+    gap: 6
+  },
+  giornoVuoto: {
+    minHeight: 100,
+    background: '#f9fafb',
+    borderRadius: 10
+  },
+  giornoCalendario: {
+    minHeight: 100,
+    border: '1px solid #e5e7eb',
+    borderRadius: 10,
+    padding: 8,
+    background: '#ffffff'
+  },
+  eventoCalendario: {
+    marginTop: 6,
+    background: '#dbeafe',
+    color: '#1e3a8a',
+    padding: 6,
+    borderRadius: 8,
+    fontSize: 13
   }
 }
 
