@@ -11,6 +11,7 @@ function App() {
   const [titolo, setTitolo] = useState('')
   const [dataScadenza, setDataScadenza] = useState('')
   const [note, setNote] = useState('')
+  const [idModifica, setIdModifica] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -35,7 +36,6 @@ function App() {
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-
     if (error) alert('Errore accesso: ' + error.message)
   }
 
@@ -89,7 +89,7 @@ function App() {
     setScadenze(data || [])
   }
 
-  async function aggiungiScadenza(e) {
+  async function salvaScadenza(e) {
     e.preventDefault()
 
     if (!titolo || !dataScadenza) {
@@ -97,22 +97,54 @@ function App() {
       return
     }
 
-    const { error } = await supabase.from('scadenze').insert({
-      titolo,
-      data: dataScadenza,
-      note,
-      user_id: session.user.id
-    })
+    if (idModifica) {
+      const { error } = await supabase
+        .from('scadenze')
+        .update({
+          titolo,
+          data: dataScadenza,
+          note
+        })
+        .eq('id', idModifica)
 
-    if (error) {
-      alert('Errore salvataggio: ' + error.message)
-      return
+      if (error) {
+        alert('Errore modifica: ' + error.message)
+        return
+      }
+    } else {
+      const { error } = await supabase.from('scadenze').insert({
+        titolo,
+        data: dataScadenza,
+        note,
+        user_id: session.user.id
+      })
+
+      if (error) {
+        alert('Errore salvataggio: ' + error.message)
+        return
+      }
     }
 
     setTitolo('')
     setDataScadenza('')
     setNote('')
+    setIdModifica(null)
     caricaScadenze()
+  }
+
+  function preparaModifica(item) {
+    setTitolo(item.titolo)
+    setDataScadenza(item.data)
+    setNote(item.note || '')
+    setIdModifica(item.id)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function annullaModifica() {
+    setTitolo('')
+    setDataScadenza('')
+    setNote('')
+    setIdModifica(null)
   }
 
   async function cambiaStato(item) {
@@ -143,6 +175,38 @@ function App() {
     }
 
     caricaScadenze()
+  }
+
+  function giorniAllaScadenza(data) {
+    const oggi = new Date()
+    const scadenza = new Date(data)
+
+    oggi.setHours(0, 0, 0, 0)
+    scadenza.setHours(0, 0, 0, 0)
+
+    return Math.ceil((scadenza - oggi) / (1000 * 60 * 60 * 24))
+  }
+
+  function testoScadenza(item) {
+    if (item.completata) return 'Completata'
+
+    const giorni = giorniAllaScadenza(item.data)
+
+    if (giorni < 0) return 'Scaduta'
+    if (giorni === 0) return 'Scade oggi'
+    if (giorni === 1) return 'Scade domani'
+    return `Mancano ${giorni} giorni`
+  }
+
+  function stileScadenza(item) {
+    if (item.completata) return styles.scadenzaCompletata
+
+    const giorni = giorniAllaScadenza(item.data)
+
+    if (giorni < 0) return styles.scadenzaScaduta
+    if (giorni <= 6) return styles.scadenzaUrgente
+
+    return styles.scadenzaNormale
   }
 
   if (!session) {
@@ -205,9 +269,9 @@ function App() {
         </div>
 
         <div style={styles.card}>
-          <h2>Aggiungi scadenza</h2>
+          <h2>{idModifica ? 'Modifica scadenza' : 'Aggiungi scadenza'}</h2>
 
-          <form onSubmit={aggiungiScadenza}>
+          <form onSubmit={salvaScadenza}>
             <input
               placeholder="Nome scadenza"
               value={titolo}
@@ -230,8 +294,14 @@ function App() {
             />
 
             <button type="submit" style={styles.bottonePrimario}>
-              Aggiungi
+              {idModifica ? 'Salva modifica' : 'Aggiungi'}
             </button>
+
+            {idModifica && (
+              <button type="button" onClick={annullaModifica} style={styles.bottoneSecondario}>
+                Annulla modifica
+              </button>
+            )}
           </form>
         </div>
 
@@ -242,7 +312,7 @@ function App() {
         )}
 
         {scadenze.map(item => (
-          <div key={item.id} style={styles.scadenza}>
+          <div key={item.id} style={{ ...styles.scadenza, ...stileScadenza(item) }}>
             <h3 style={{ textDecoration: item.completata ? 'line-through' : 'none' }}>
               {item.titolo}
             </h3>
@@ -252,11 +322,15 @@ function App() {
             {item.note && <p>Note: {item.note}</p>}
 
             <p>
-              Stato: <strong>{item.completata ? 'Completata' : 'Da fare'}</strong>
+              <strong>{testoScadenza(item)}</strong>
             </p>
 
             <button onClick={() => cambiaStato(item)} style={styles.bottoneSecondario}>
               {item.completata ? 'Segna da fare' : 'Segna completata'}
+            </button>
+
+            <button onClick={() => preparaModifica(item)} style={styles.bottoneSecondario}>
+              Modifica
             </button>
 
             <button onClick={() => eliminaScadenza(item.id)} style={styles.bottoneElimina}>
@@ -355,11 +429,28 @@ const styles = {
     cursor: 'pointer'
   },
   scadenza: {
-    background: 'white',
     padding: 20,
     borderRadius: 16,
     boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
-    marginBottom: 15
+    marginBottom: 15,
+    border: '2px solid transparent'
+  },
+  scadenzaNormale: {
+    background: 'white',
+    borderColor: '#e5e7eb'
+  },
+  scadenzaUrgente: {
+    background: '#fff7ed',
+    borderColor: '#f97316'
+  },
+  scadenzaScaduta: {
+    background: '#fef2f2',
+    borderColor: '#dc2626'
+  },
+  scadenzaCompletata: {
+    background: '#f9fafb',
+    borderColor: '#d1d5db',
+    color: '#6b7280'
   }
 }
 
