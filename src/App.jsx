@@ -12,6 +12,7 @@ function App() {
   const [session, setSession] = useState(null)
   const [profilo, setProfilo] = useState(null)
   const [controlloApprovazione, setControlloApprovazione] = useState(false)
+  const [utenti, setUtenti] = useState([])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mostraPassword, setMostraPassword] = useState(false)
@@ -92,7 +93,7 @@ function App() {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('approved')
+      .select('approved, is_admin')
       .eq('id', session.user.id)
       .single()
 
@@ -109,6 +110,48 @@ function App() {
     }
 
     setControlloApprovazione(false)
+  }
+
+  async function caricaUtenti() {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, approved, is_admin, created_at')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert('Errore caricamento utenti: ' + error.message)
+      return
+    }
+
+    setUtenti(data || [])
+  }
+
+  async function approvaUtente(id) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ approved: true })
+      .eq('id', id)
+
+    if (error) {
+      alert('Errore approvazione: ' + error.message)
+      return
+    }
+
+    caricaUtenti()
+  }
+
+  async function bloccaUtente(id) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ approved: false })
+      .eq('id', id)
+
+    if (error) {
+      alert('Errore blocco: ' + error.message)
+      return
+    }
+
+    caricaUtenti()
   }
 
   async function caricaScadenze() {
@@ -443,6 +486,18 @@ function App() {
           <button onClick={() => setVista('stampa')} style={vista === 'stampa' ? styles.bottonePrimario : styles.bottoneSecondario}>
             Stampa PDF
           </button>
+
+          {profilo?.is_admin && (
+            <button
+              onClick={() => {
+                setVista('admin')
+                caricaUtenti()
+              }}
+              style={vista === 'admin' ? styles.bottonePrimario : styles.bottoneSecondario}
+            >
+              Pannello admin
+            </button>
+          )}
         </div>
 
         {vista === 'lista' && (
@@ -521,6 +576,57 @@ function App() {
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {vista === 'admin' && profilo?.is_admin && (
+          <div style={styles.card}>
+            <h2>Pannello admin</h2>
+            <p>Gestisci gli utenti autorizzati a usare lo scadenzario.</p>
+
+            {utenti.length === 0 && (
+              <p>Nessun utente trovato.</p>
+            )}
+
+            {utenti.map(utente => (
+              <div key={utente.id} style={styles.utenteCard}>
+                <p>
+                  <strong>{utente.email}</strong>
+                </p>
+
+                <p>
+                  Stato:{' '}
+                  <strong>
+                    {utente.approved ? 'Approvato' : 'In attesa'}
+                  </strong>
+                </p>
+
+                <p>
+                  Admin:{' '}
+                  <strong>
+                    {utente.is_admin ? 'Sì' : 'No'}
+                  </strong>
+                </p>
+
+                {!utente.approved && (
+                  <button
+                    onClick={() => approvaUtente(utente.id)}
+                    style={styles.bottonePrimario}
+                  >
+                    Approva
+                  </button>
+                )}
+
+                {utente.approved && !utente.is_admin && (
+                  <button
+                    onClick={() => bloccaUtente(utente.id)}
+                    style={styles.bottoneElimina}
+                  >
+                    Blocca
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
@@ -841,6 +947,13 @@ const styles = {
     padding: 6,
     borderRadius: 8,
     fontSize: 13
+  },
+  utenteCard: {
+    background: '#f9fafb',
+    padding: 15,
+    borderRadius: 12,
+    border: '1px solid #e5e7eb',
+    marginBottom: 12
   }
 }
 
