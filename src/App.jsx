@@ -9,6 +9,7 @@ const mesiItaliani = [
 function App() {
   const [session, setSession] = useState(null)
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [scadenze, setScadenze] = useState([])
 
   const [titolo, setTitolo] = useState('')
@@ -40,11 +41,37 @@ function App() {
   }, [session])
 
   async function accedi() {
-    if (!email) {
-      alert('Inserisci la tua email')
+    if (!email || !password) {
+      alert('Inserisci email e password')
       return
     }
 
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+
+    if (error) {
+    alert('Errore accesso: ' + error.message)
+   }
+  }
+  async function registrati() {
+    if (!email || !password) {
+      alert('Inserisci email e password')
+      return
+    }
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password
+    })
+
+    if (error) {
+      alert('Errore registrazione: ' + error.message)
+    } else {
+      alert('Registrazione completata. Ora puoi accedere con email e password.')
+    }
+  }
     const { error } = await supabase.auth.signInWithOtp({ email })
 
     if (error) {
@@ -302,9 +329,22 @@ function App() {
               style={styles.input}
             />
 
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            style={styles.input}
+            />
+            
             <button onClick={accedi} style={styles.bottonePrimario}>
               Accedi
             </button>
+
+            <button onClick={registrati} style={styles.bottoneSecondario}>
+  Registrati
+            </button>
+
           </section>
         </div>
       </div>
