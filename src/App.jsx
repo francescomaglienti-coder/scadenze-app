@@ -52,9 +52,10 @@ function App() {
     })
 
     if (error) {
-    alert('Errore accesso: ' + error.message)
-   }
+      alert('Errore accesso: ' + error.message)
+    }
   }
+
   async function registrati() {
     if (!email || !password) {
       alert('Inserisci email e password')
@@ -70,14 +71,6 @@ function App() {
       alert('Errore registrazione: ' + error.message)
     } else {
       alert('Registrazione completata. Ora puoi accedere con email e password.')
-    }
-  }
-    const { error } = await supabase.auth.signInWithOtp({ email })
-
-    if (error) {
-      alert('Errore accesso: ' + error.message)
-    } else {
-      alert('Controlla la tua email per accedere')
     }
   }
 
@@ -311,7 +304,7 @@ function App() {
       return d.getFullYear() === anno && d.getMonth() === mese
     })
   }
-    if (!session) {
+  if (!session) {
     return (
       <div style={styles.pagina}>
         <div style={styles.contenitore}>
@@ -334,15 +327,15 @@ function App() {
               placeholder="Password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-            style={styles.input}
+              style={styles.input}
             />
-            
+
             <button onClick={accedi} style={styles.bottonePrimario}>
               Accedi
             </button>
 
             <button onClick={registrati} style={styles.bottoneSecondario}>
-  Registrati
+              Registrati
             </button>
 
           </section>
@@ -489,10 +482,10 @@ function App() {
                     background: item.completata
                       ? '#f9fafb'
                       : scaduta
-                      ? '#fef2f2'
-                      : urgente
-                      ? '#fff7ed'
-                      : '#ffffff'
+                        ? '#fef2f2'
+                        : urgente
+                          ? '#fff7ed'
+                          : '#ffffff'
                   }}
                 >
                   <h3
