@@ -10,6 +10,7 @@ function App() {
   const [session, setSession] = useState(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [mostraPassword, setMostraPassword] = useState(false)
   const [scadenze, setScadenze] = useState([])
 
   const [titolo, setTitolo] = useState('')
@@ -68,286 +69,326 @@ function App() {
     })
 
     if (error) {
-      alert('Errore registrazione: ' + error.message)
-    } else {
-      alert('Registrazione completata. Ora puoi accedere con email e password.')
-    }
-  }
+      const messaggio = error.message.toLowerCase()
 
-  async function esci() {
-    await supabase.auth.signOut()
-    setSession(null)
-    setScadenze([])
-    setEmail('')
-  }
+      if (
+        messaggio.includes('already') ||
+        messaggio.includes('registered') ||
+        messaggio.includes('user already')
+      ) {
+        alert('Questo utente è già registrato. Usa Accedi oppure Reset password.')
+      } else {
+        alert('Errore registrazione: ' + error.message)
+      }
 
-  async function caricaScadenze() {
-    const { data, error } = await supabase
-      .from('scadenze')
-      .select('*')
-      .order('data', { ascending: true })
-
-    if (error) {
-      alert('Errore caricamento: ' + error.message)
       return
     }
 
-    setScadenze(data || [])
-  }
+    alert('Registrazione completata. Ora puoi accedere con email e password.')
 
-  async function salvaScadenza(e) {
-    e.preventDefault()
-
-    if (!titolo || !data) {
-      alert('Inserisci sia il nome sia la data')
-      return
-    }
-
-    if (idModifica) {
-      const { error } = await supabase
-        .from('scadenze')
-        .update({ titolo, data, note })
-        .eq('id', idModifica)
-
-      if (error) {
-        alert('Errore modifica: ' + error.message)
+    async function resetPassword() {
+      if (!email) {
+        alert('Inserisci prima la tua email')
         return
       }
-    } else {
-      const { error } = await supabase
-        .from('scadenze')
-        .insert({
-          titolo,
-          data,
-          note,
-          user_id: session.user.id
-        })
 
-      if (error) {
-        alert('Errore salvataggio: ' + error.message)
-        return
-      }
-    }
-
-    setTitolo('')
-    setData('')
-    setNote('')
-    setIdModifica(null)
-    caricaScadenze()
-  }
-
-  function modificaScadenza(item) {
-    setTitolo(item.titolo)
-    setData(item.data)
-    setNote(item.note || '')
-    setIdModifica(item.id)
-    setVista('lista')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  function annullaModifica() {
-    setTitolo('')
-    setData('')
-    setNote('')
-    setIdModifica(null)
-  }
-
-  async function eliminaScadenza(id) {
-    if (!confirm('Vuoi eliminare questa scadenza?')) return
-
-    const { error } = await supabase
-      .from('scadenze')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      alert('Errore eliminazione: ' + error.message)
-      return
-    }
-
-    caricaScadenze()
-  }
-
-  async function cambiaStato(item) {
-    const { error } = await supabase
-      .from('scadenze')
-      .update({ completata: !item.completata })
-      .eq('id', item.id)
-
-    if (error) {
-      alert('Errore aggiornamento: ' + error.message)
-      return
-    }
-
-    caricaScadenze()
-  }
-
-  async function rinviaDiUnAnno(item) {
-    const nuovaData = new Date(item.data)
-    nuovaData.setFullYear(nuovaData.getFullYear() + 1)
-
-    const dataAggiornata = nuovaData.toISOString().split('T')[0]
-
-    const { error } = await supabase
-      .from('scadenze')
-      .update({
-        data: dataAggiornata,
-        completata: false
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://scadenze-app-azure.vercel.app'
       })
-      .eq('id', item.id)
 
-    if (error) {
-      alert('Errore rinvio: ' + error.message)
-      return
+      if (error) {
+        alert('Errore reset password: ' + error.message)
+      } else {
+        alert('Ti ho inviato una email per reimpostare la password.')
+      }
     }
 
-    caricaScadenze()
-  }
-
-  function giorniAllaScadenza(dataScadenza) {
-    const oggi = new Date()
-    const scadenza = new Date(dataScadenza)
-
-    oggi.setHours(0, 0, 0, 0)
-    scadenza.setHours(0, 0, 0, 0)
-
-    return Math.ceil((scadenza - oggi) / (1000 * 60 * 60 * 24))
-  }
-
-  function testoScadenza(dataScadenza) {
-    const giorni = giorniAllaScadenza(dataScadenza)
-
-    if (giorni < 0) return 'Scaduta'
-    if (giorni === 0) return 'Scade oggi'
-    if (giorni === 1) return 'Scade domani'
-    return `Mancano ${giorni} giorni`
-  }
-
-  function dataItaliana(dataIso) {
-    return new Date(dataIso).toLocaleDateString('it-IT')
-  }
-
-  function cambiaMese(numero) {
-    const nuovaData = new Date(meseCorrente)
-    nuovaData.setMonth(nuovaData.getMonth() + numero)
-    setMeseCorrente(nuovaData)
-  }
-
-  function dataFormatoISO(data) {
-    const anno = data.getFullYear()
-    const mese = String(data.getMonth() + 1).padStart(2, '0')
-    const giorno = String(data.getDate()).padStart(2, '0')
-    return `${anno}-${mese}-${giorno}`
-  }
-
-  function creaGiorniCalendario() {
-    const anno = meseCorrente.getFullYear()
-    const mese = meseCorrente.getMonth()
-
-    const primoGiorno = new Date(anno, mese, 1)
-    const ultimoGiorno = new Date(anno, mese + 1, 0)
-
-    let giornoSettimana = primoGiorno.getDay()
-    if (giornoSettimana === 0) giornoSettimana = 7
-
-    const giorni = []
-
-    for (let i = 0; i < giornoSettimana - 1; i++) {
-      giorni.push(null)
+    async function esci() {
+      await supabase.auth.signOut()
+      setSession(null)
+      setScadenze([])
+      setEmail('')
     }
 
-    for (let giorno = 1; giorno <= ultimoGiorno.getDate(); giorno++) {
-      giorni.push(new Date(anno, mese, giorno))
+    async function caricaScadenze() {
+      const { data, error } = await supabase
+        .from('scadenze')
+        .select('*')
+        .order('data', { ascending: true })
+
+      if (error) {
+        alert('Errore caricamento: ' + error.message)
+        return
+      }
+
+      setScadenze(data || [])
     }
 
-    return giorni
-  }
+    async function salvaScadenza(e) {
+      e.preventDefault()
 
-  function cambiaSelezioneMese(mese) {
-    if (mesiDaStampare.includes(mese)) {
-      setMesiDaStampare(mesiDaStampare.filter(m => m !== mese))
-    } else {
-      setMesiDaStampare([...mesiDaStampare, mese].sort((a, b) => a - b))
+      if (!titolo || !data) {
+        alert('Inserisci sia il nome sia la data')
+        return
+      }
+
+      if (idModifica) {
+        const { error } = await supabase
+          .from('scadenze')
+          .update({ titolo, data, note })
+          .eq('id', idModifica)
+
+        if (error) {
+          alert('Errore modifica: ' + error.message)
+          return
+        }
+      } else {
+        const { error } = await supabase
+          .from('scadenze')
+          .insert({
+            titolo,
+            data,
+            note,
+            user_id: session.user.id
+          })
+
+        if (error) {
+          alert('Errore salvataggio: ' + error.message)
+          return
+        }
+      }
+
+      setTitolo('')
+      setData('')
+      setNote('')
+      setIdModifica(null)
+      caricaScadenze()
     }
-  }
 
-  function selezionaTuttiIMesi() {
-    setMesiDaStampare([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
-  }
-
-  function stampaMesiSelezionati() {
-    if (mesiDaStampare.length === 0) {
-      alert('Seleziona almeno un mese da stampare')
-      return
+    function modificaScadenza(item) {
+      setTitolo(item.titolo)
+      setData(item.data)
+      setNote(item.note || '')
+      setIdModifica(item.id)
+      setVista('lista')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
-    setVista('stampa-mesi')
-    setTimeout(() => window.print(), 200)
-  }
+    function annullaModifica() {
+      setTitolo('')
+      setData('')
+      setNote('')
+      setIdModifica(null)
+    }
 
-  function stampaAnnoIntero() {
-    selezionaTuttiIMesi()
-    setVista('stampa-anno')
-    setTimeout(() => window.print(), 200)
-  }
+    async function eliminaScadenza(id) {
+      if (!confirm('Vuoi eliminare questa scadenza?')) return
 
-  const scadenzeOrdinate = [...scadenze].sort(
-    (a, b) => new Date(a.data) - new Date(b.data)
-  )
+      const { error } = await supabase
+        .from('scadenze')
+        .delete()
+        .eq('id', id)
 
-  const giorniCalendario = creaGiorniCalendario()
-  const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+      if (error) {
+        alert('Errore eliminazione: ' + error.message)
+        return
+      }
 
-  function scadenzeDelMese(anno, mese) {
-    return scadenzeOrdinate.filter(item => {
-      const d = new Date(item.data)
-      return d.getFullYear() === anno && d.getMonth() === mese
-    })
-  }
-  if (!session) {
-    return (
-      <div style={styles.pagina}>
-        <div style={styles.contenitore}>
-          <section style={styles.card}>
-            <h1 style={styles.titolo}>Le mie scadenze</h1>
-            <p style={styles.sottotitolo}>
-              Accedi con la tua email per sincronizzare le scadenze.
-            </p>
+      caricaScadenze()
+    }
 
-            <input
-              type="email"
-              placeholder="La tua email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              style={styles.input}
-            />
+    async function cambiaStato(item) {
+      const { error } = await supabase
+        .from('scadenze')
+        .update({ completata: !item.completata })
+        .eq('id', item.id)
 
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              style={styles.input}
-            />
+      if (error) {
+        alert('Errore aggiornamento: ' + error.message)
+        return
+      }
 
-            <button onClick={accedi} style={styles.bottonePrimario}>
-              Accedi
-            </button>
+      caricaScadenze()
+    }
 
-            <button onClick={registrati} style={styles.bottoneSecondario}>
-              Registrati
-            </button>
+    async function rinviaDiUnAnno(item) {
+      const nuovaData = new Date(item.data)
+      nuovaData.setFullYear(nuovaData.getFullYear() + 1)
 
-          </section>
-        </div>
-      </div>
+      const dataAggiornata = nuovaData.toISOString().split('T')[0]
+
+      const { error } = await supabase
+        .from('scadenze')
+        .update({
+          data: dataAggiornata,
+          completata: false
+        })
+        .eq('id', item.id)
+
+      if (error) {
+        alert('Errore rinvio: ' + error.message)
+        return
+      }
+
+      caricaScadenze()
+    }
+
+    function giorniAllaScadenza(dataScadenza) {
+      const oggi = new Date()
+      const scadenza = new Date(dataScadenza)
+
+      oggi.setHours(0, 0, 0, 0)
+      scadenza.setHours(0, 0, 0, 0)
+
+      return Math.ceil((scadenza - oggi) / (1000 * 60 * 60 * 24))
+    }
+
+    function testoScadenza(dataScadenza) {
+      const giorni = giorniAllaScadenza(dataScadenza)
+
+      if (giorni < 0) return 'Scaduta'
+      if (giorni === 0) return 'Scade oggi'
+      if (giorni === 1) return 'Scade domani'
+      return `Mancano ${giorni} giorni`
+    }
+
+    function dataItaliana(dataIso) {
+      return new Date(dataIso).toLocaleDateString('it-IT')
+    }
+
+    function cambiaMese(numero) {
+      const nuovaData = new Date(meseCorrente)
+      nuovaData.setMonth(nuovaData.getMonth() + numero)
+      setMeseCorrente(nuovaData)
+    }
+
+    function dataFormatoISO(data) {
+      const anno = data.getFullYear()
+      const mese = String(data.getMonth() + 1).padStart(2, '0')
+      const giorno = String(data.getDate()).padStart(2, '0')
+      return `${anno}-${mese}-${giorno}`
+    }
+
+    function creaGiorniCalendario() {
+      const anno = meseCorrente.getFullYear()
+      const mese = meseCorrente.getMonth()
+
+      const primoGiorno = new Date(anno, mese, 1)
+      const ultimoGiorno = new Date(anno, mese + 1, 0)
+
+      let giornoSettimana = primoGiorno.getDay()
+      if (giornoSettimana === 0) giornoSettimana = 7
+
+      const giorni = []
+
+      for (let i = 0; i < giornoSettimana - 1; i++) {
+        giorni.push(null)
+      }
+
+      for (let giorno = 1; giorno <= ultimoGiorno.getDate(); giorno++) {
+        giorni.push(new Date(anno, mese, giorno))
+      }
+
+      return giorni
+    }
+
+    function cambiaSelezioneMese(mese) {
+      if (mesiDaStampare.includes(mese)) {
+        setMesiDaStampare(mesiDaStampare.filter(m => m !== mese))
+      } else {
+        setMesiDaStampare([...mesiDaStampare, mese].sort((a, b) => a - b))
+      }
+    }
+
+    function selezionaTuttiIMesi() {
+      setMesiDaStampare([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    }
+
+    function stampaMesiSelezionati() {
+      if (mesiDaStampare.length === 0) {
+        alert('Seleziona almeno un mese da stampare')
+        return
+      }
+
+      setVista('stampa-mesi')
+      setTimeout(() => window.print(), 200)
+    }
+
+    function stampaAnnoIntero() {
+      selezionaTuttiIMesi()
+      setVista('stampa-anno')
+      setTimeout(() => window.print(), 200)
+    }
+
+    const scadenzeOrdinate = [...scadenze].sort(
+      (a, b) => new Date(a.data) - new Date(b.data)
     )
-  }
 
-  return (
-    <div style={styles.pagina} className="pagina">
-      <style>
-        {`
+    const giorniCalendario = creaGiorniCalendario()
+    const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+
+    function scadenzeDelMese(anno, mese) {
+      return scadenzeOrdinate.filter(item => {
+        const d = new Date(item.data)
+        return d.getFullYear() === anno && d.getMonth() === mese
+      })
+    }
+    if (!session) {
+      return (
+        <div style={styles.pagina}>
+          <div style={styles.contenitore}>
+            <section style={styles.card}>
+              <h1 style={styles.titolo}>Le mie scadenze</h1>
+              <p style={styles.sottotitolo}>
+                Accedi con la tua email per sincronizzare le scadenze.
+              </p>
+
+              <input
+                type="email"
+                placeholder="La tua email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                style={styles.input}
+              />
+
+              <input
+                type={mostraPassword ? 'text' : 'password'}
+                placeholder="Password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                style={styles.input}
+              />
+
+              <button
+                type="button"
+                onClick={() => setMostraPassword(!mostraPassword)}
+                style={styles.bottoneSecondario}
+              >
+                {mostraPassword ? 'Nascondi password' : 'Mostra password'}
+              </button>
+
+              <button onClick={accedi} style={styles.bottonePrimario}>
+                Accedi
+              </button>
+
+              <button onClick={registrati} style={styles.bottoneSecondario}>
+                Registrati
+              </button>
+
+              <button onClick={resetPassword} style={styles.bottoneSecondario}>
+                Reset password
+              </button>
+
+            </section>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div style={styles.pagina} className="pagina">
+        <style>
+          {`
           @media print {
             .no-print {
               display: none !important;
@@ -381,306 +422,307 @@ function App() {
             }
           }
         `}
-      </style>
+        </style>
 
-      <div style={styles.contenitore} className="contenitore">
-        <header style={styles.header} className="no-print">
-          <h1 style={styles.titolo}>Le mie scadenze</h1>
-          <p style={styles.sottotitolo}>
-            Accesso effettuato: {session.user.email}
-          </p>
+        <div style={styles.contenitore} className="contenitore">
+          <header style={styles.header} className="no-print">
+            <h1 style={styles.titolo}>Le mie scadenze</h1>
+            <p style={styles.sottotitolo}>
+              Accesso effettuato: {session.user.email}
+            </p>
 
-          <button onClick={esci} style={styles.bottoneEsci}>
-            Esci dall’account
-          </button>
-        </header>
+            <button onClick={esci} style={styles.bottoneEsci}>
+              Esci dall’account
+            </button>
+          </header>
 
-        <section style={styles.card} className="no-print">
-          <h2 style={styles.cardTitolo}>
-            {idModifica ? 'Modifica scadenza' : 'Aggiungi una scadenza'}
-          </h2>
+          <section style={styles.card} className="no-print">
+            <h2 style={styles.cardTitolo}>
+              {idModifica ? 'Modifica scadenza' : 'Aggiungi una scadenza'}
+            </h2>
 
-          <form onSubmit={salvaScadenza}>
-            <label style={styles.label}>Nome scadenza</label>
-            <input
-              placeholder="Es. Assicurazione auto"
-              value={titolo}
-              onChange={e => setTitolo(e.target.value)}
-              style={styles.input}
-            />
+            <form onSubmit={salvaScadenza}>
+              <label style={styles.label}>Nome scadenza</label>
+              <input
+                placeholder="Es. Assicurazione auto"
+                value={titolo}
+                onChange={e => setTitolo(e.target.value)}
+                style={styles.input}
+              />
 
-            <label style={styles.label}>Data</label>
-            <input
-              type="date"
-              value={data}
-              onChange={e => setData(e.target.value)}
-              style={styles.input}
-            />
+              <label style={styles.label}>Data</label>
+              <input
+                type="date"
+                value={data}
+                onChange={e => setData(e.target.value)}
+                style={styles.input}
+              />
 
-            <label style={styles.label}>Note</label>
-            <textarea
-              placeholder="Es. documenti da preparare, importo, riferimento..."
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              style={styles.textarea}
-            />
+              <label style={styles.label}>Note</label>
+              <textarea
+                placeholder="Es. documenti da preparare, importo, riferimento..."
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                style={styles.textarea}
+              />
 
-            <div style={styles.rigaBottoni}>
-              <button type="submit" style={styles.bottonePrimario}>
-                {idModifica ? 'Salva modifica' : 'Aggiungi'}
-              </button>
-
-              {idModifica && (
-                <button type="button" onClick={annullaModifica} style={styles.bottoneSecondario}>
-                  Annulla
+              <div style={styles.rigaBottoni}>
+                <button type="submit" style={styles.bottonePrimario}>
+                  {idModifica ? 'Salva modifica' : 'Aggiungi'}
                 </button>
-              )}
-            </div>
-          </form>
-        </section>
 
-        <div style={styles.rigaBottoni} className="no-print">
-          <button
-            onClick={() => setVista('lista')}
-            style={vista === 'lista' ? styles.bottonePrimario : styles.bottoneSecondario}
-          >
-            Vista lista
-          </button>
-
-          <button
-            onClick={() => setVista('calendario')}
-            style={vista === 'calendario' ? styles.bottonePrimario : styles.bottoneSecondario}
-          >
-            Vista calendario
-          </button>
-
-          <button
-            onClick={() => setVista('stampa')}
-            style={vista === 'stampa' ? styles.bottonePrimario : styles.bottoneSecondario}
-          >
-            Stampa
-          </button>
-        </div>
-
-        {vista === 'lista' && (
-          <section style={styles.lista}>
-            {scadenzeOrdinate.length === 0 && (
-              <div style={styles.vuoto}>Nessuna scadenza inserita.</div>
-            )}
-
-            {scadenzeOrdinate.map(item => {
-              const giorni = giorniAllaScadenza(item.data)
-              const urgente = giorni <= 5 && !item.completata
-              const scaduta = giorni < 0 && !item.completata
-
-              return (
-                <div
-                  key={item.id}
-                  style={{
-                    ...styles.scadenza,
-                    borderColor: scaduta ? '#dc2626' : urgente ? '#f97316' : '#e5e7eb',
-                    background: item.completata
-                      ? '#f9fafb'
-                      : scaduta
-                        ? '#fef2f2'
-                        : urgente
-                          ? '#fff7ed'
-                          : '#ffffff'
-                  }}
-                >
-                  <h3
-                    style={{
-                      ...styles.nomeScadenza,
-                      textDecoration: item.completata ? 'line-through' : 'none',
-                      color: item.completata ? '#6b7280' : '#111827'
-                    }}
-                  >
-                    {item.titolo}
-                  </h3>
-
-                  <p style={styles.dataScadenza}>Data: {dataItaliana(item.data)}</p>
-
-                  {item.note && (
-                    <p style={styles.noteScadenza}>Note: {item.note}</p>
-                  )}
-
-                  <span style={styles.etichetta}>
-                    {item.completata ? 'Completata' : testoScadenza(item.data)}
-                  </span>
-
-                  <div style={styles.rigaBottoniCard}>
-                    <button onClick={() => cambiaStato(item)} style={styles.bottonePiccolo}>
-                      {item.completata ? 'Da fare' : 'Completata'}
-                    </button>
-
-                    <button onClick={() => modificaScadenza(item)} style={styles.bottonePiccolo}>
-                      Modifica
-                    </button>
-
-                    <button onClick={() => rinviaDiUnAnno(item)} style={styles.bottonePiccolo}>
-                      Rinvia 1 anno
-                    </button>
-
-                    <button onClick={() => eliminaScadenza(item.id)} style={styles.bottoneElimina}>
-                      Elimina
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+                {idModifica && (
+                  <button type="button" onClick={annullaModifica} style={styles.bottoneSecondario}>
+                    Annulla
+                  </button>
+                )}
+              </div>
+            </form>
           </section>
-        )}
 
-        {vista === 'calendario' && (
-          <section style={styles.calendario}>
-            <div style={styles.testataCalendario}>
-              <button onClick={() => cambiaMese(-1)} style={styles.bottoneSecondario}>
-                Mese precedente
-              </button>
+          <div style={styles.rigaBottoni} className="no-print">
+            <button
+              onClick={() => setVista('lista')}
+              style={vista === 'lista' ? styles.bottonePrimario : styles.bottoneSecondario}
+            >
+              Vista lista
+            </button>
 
-              <h2 style={styles.titoloCalendario}>
-                {meseCorrente.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
-              </h2>
+            <button
+              onClick={() => setVista('calendario')}
+              style={vista === 'calendario' ? styles.bottonePrimario : styles.bottoneSecondario}
+            >
+              Vista calendario
+            </button>
 
-              <button onClick={() => cambiaMese(1)} style={styles.bottoneSecondario}>
-                Mese successivo
-              </button>
-            </div>
+            <button
+              onClick={() => setVista('stampa')}
+              style={vista === 'stampa' ? styles.bottonePrimario : styles.bottoneSecondario}
+            >
+              Stampa
+            </button>
+          </div>
 
-            <div style={styles.grigliaSettimana}>
-              {giorniSettimana.map(giorno => (
-                <div key={giorno} style={styles.nomeGiorno}>{giorno}</div>
-              ))}
-            </div>
+          {vista === 'lista' && (
+            <section style={styles.lista}>
+              {scadenzeOrdinate.length === 0 && (
+                <div style={styles.vuoto}>Nessuna scadenza inserita.</div>
+              )}
 
-            <div style={styles.grigliaCalendario}>
-              {giorniCalendario.map((giorno, index) => {
-                if (!giorno) return <div key={index} style={styles.giornoVuoto}></div>
-
-                const iso = dataFormatoISO(giorno)
-                const eventi = scadenzeOrdinate.filter(item => item.data === iso)
+              {scadenzeOrdinate.map(item => {
+                const giorni = giorniAllaScadenza(item.data)
+                const urgente = giorni <= 5 && !item.completata
+                const scaduta = giorni < 0 && !item.completata
 
                 return (
-                  <div key={iso} style={styles.giornoCalendario}>
-                    <div style={styles.numeroGiorno}>{giorno.getDate()}</div>
+                  <div
+                    key={item.id}
+                    style={{
+                      ...styles.scadenza,
+                      borderColor: scaduta ? '#dc2626' : urgente ? '#f97316' : '#e5e7eb',
+                      background: item.completata
+                        ? '#f9fafb'
+                        : scaduta
+                          ? '#fef2f2'
+                          : urgente
+                            ? '#fff7ed'
+                            : '#ffffff'
+                    }}
+                  >
+                    <h3
+                      style={{
+                        ...styles.nomeScadenza,
+                        textDecoration: item.completata ? 'line-through' : 'none',
+                        color: item.completata ? '#6b7280' : '#111827'
+                      }}
+                    >
+                      {item.titolo}
+                    </h3>
 
-                    {eventi.map(item => (
-                      <div key={item.id} style={styles.eventoCalendario}>
-                        <strong>{item.titolo}</strong>
-                        {item.note && <div style={styles.noteCalendario}>{item.note}</div>}
-                      </div>
-                    ))}
+                    <p style={styles.dataScadenza}>Data: {dataItaliana(item.data)}</p>
+
+                    {item.note && (
+                      <p style={styles.noteScadenza}>Note: {item.note}</p>
+                    )}
+
+                    <span style={styles.etichetta}>
+                      {item.completata ? 'Completata' : testoScadenza(item.data)}
+                    </span>
+
+                    <div style={styles.rigaBottoniCard}>
+                      <button onClick={() => cambiaStato(item)} style={styles.bottonePiccolo}>
+                        {item.completata ? 'Da fare' : 'Completata'}
+                      </button>
+
+                      <button onClick={() => modificaScadenza(item)} style={styles.bottonePiccolo}>
+                        Modifica
+                      </button>
+
+                      <button onClick={() => rinviaDiUnAnno(item)} style={styles.bottonePiccolo}>
+                        Rinvia 1 anno
+                      </button>
+
+                      <button onClick={() => eliminaScadenza(item.id)} style={styles.bottoneElimina}>
+                        Elimina
+                      </button>
+                    </div>
                   </div>
                 )
               })}
-            </div>
-          </section>
-        )}
+            </section>
+          )}
 
-        {vista === 'stampa' && (
-          <section style={styles.card} className="no-print">
-            <h2 style={styles.cardTitolo}>Stampa scadenze</h2>
+          {vista === 'calendario' && (
+            <section style={styles.calendario}>
+              <div style={styles.testataCalendario}>
+                <button onClick={() => cambiaMese(-1)} style={styles.bottoneSecondario}>
+                  Mese precedente
+                </button>
 
-            <label style={styles.label}>Anno da stampare</label>
-            <input
-              type="number"
-              value={annoStampa}
-              onChange={e => setAnnoStampa(Number(e.target.value))}
-              style={styles.input}
-            />
+                <h2 style={styles.titoloCalendario}>
+                  {meseCorrente.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+                </h2>
 
-            <p style={styles.sottotitolo}>Scegli i mesi da stampare:</p>
+                <button onClick={() => cambiaMese(1)} style={styles.bottoneSecondario}>
+                  Mese successivo
+                </button>
+              </div>
 
-            <div style={styles.grigliaMesi}>
-              {mesiItaliani.map((mese, index) => (
-                <label key={mese} style={styles.checkMese}>
-                  <input
-                    type="checkbox"
-                    checked={mesiDaStampare.includes(index)}
-                    onChange={() => cambiaSelezioneMese(index)}
-                  />
-                  {mese}
-                </label>
-              ))}
-            </div>
+              <div style={styles.grigliaSettimana}>
+                {giorniSettimana.map(giorno => (
+                  <div key={giorno} style={styles.nomeGiorno}>{giorno}</div>
+                ))}
+              </div>
 
-            <div style={styles.rigaBottoni}>
-              <button onClick={stampaMesiSelezionati} style={styles.bottoneStampa}>
-                Stampa mesi selezionati
-              </button>
+              <div style={styles.grigliaCalendario}>
+                {giorniCalendario.map((giorno, index) => {
+                  if (!giorno) return <div key={index} style={styles.giornoVuoto}></div>
 
-              <button onClick={stampaAnnoIntero} style={styles.bottonePrimario}>
-                Stampa anno intero
-              </button>
+                  const iso = dataFormatoISO(giorno)
+                  const eventi = scadenzeOrdinate.filter(item => item.data === iso)
 
-              <button onClick={selezionaTuttiIMesi} style={styles.bottoneSecondario}>
-                Seleziona tutti i mesi
-              </button>
+                  return (
+                    <div key={iso} style={styles.giornoCalendario}>
+                      <div style={styles.numeroGiorno}>{giorno.getDate()}</div>
 
-              <button onClick={() => setMesiDaStampare([])} style={styles.bottoneSecondario}>
-                Deseleziona tutti
-              </button>
-            </div>
-          </section>
-        )}
+                      {eventi.map(item => (
+                        <div key={item.id} style={styles.eventoCalendario}>
+                          <strong>{item.titolo}</strong>
+                          {item.note && <div style={styles.noteCalendario}>{item.note}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
-        {(vista === 'stampa-mesi' || vista === 'stampa-anno') && (
-          <section style={styles.stampaArea} className="print-section">
-            <div className="no-print" style={styles.rigaBottoni}>
-              <button onClick={() => setVista('stampa')} style={styles.bottoneSecondario}>
-                Torna alla scelta stampa
-              </button>
+          {vista === 'stampa' && (
+            <section style={styles.card} className="no-print">
+              <h2 style={styles.cardTitolo}>Stampa scadenze</h2>
 
-              <button onClick={() => window.print()} style={styles.bottoneStampa}>
-                Stampa di nuovo
-              </button>
-            </div>
+              <label style={styles.label}>Anno da stampare</label>
+              <input
+                type="number"
+                value={annoStampa}
+                onChange={e => setAnnoStampa(Number(e.target.value))}
+                style={styles.input}
+              />
 
-            <h1 style={styles.titoloStampa}>
-              Scadenze {annoStampa}
-            </h1>
+              <p style={styles.sottotitolo}>Scegli i mesi da stampare:</p>
 
-            {mesiDaStampare.map(mese => {
-              const elementi = scadenzeDelMese(annoStampa, mese)
+              <div style={styles.grigliaMesi}>
+                {mesiItaliani.map((mese, index) => (
+                  <label key={mese} style={styles.checkMese}>
+                    <input
+                      type="checkbox"
+                      checked={mesiDaStampare.includes(index)}
+                      onChange={() => cambiaSelezioneMese(index)}
+                    />
+                    {mese}
+                  </label>
+                ))}
+              </div>
 
-              return (
-                <div key={mese} className="mese-stampa" style={styles.meseStampa}>
-                  <h2 style={styles.nomeMeseStampa}>
-                    {mesiItaliani[mese]} {annoStampa}
-                  </h2>
+              <div style={styles.rigaBottoni}>
+                <button onClick={stampaMesiSelezionati} style={styles.bottoneStampa}>
+                  Stampa mesi selezionati
+                </button>
 
-                  {elementi.length === 0 ? (
-                    <p style={styles.nessunaStampa}>Nessuna scadenza.</p>
-                  ) : (
-                    <table style={styles.tabella}>
-                      <thead>
-                        <tr>
-                          <th style={styles.th}>Data</th>
-                          <th style={styles.th}>Scadenza</th>
-                          <th style={styles.th}>Note</th>
-                          <th style={styles.th}>Stato</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {elementi.map(item => (
-                          <tr key={item.id}>
-                            <td style={styles.td}>{dataItaliana(item.data)}</td>
-                            <td style={styles.td}>{item.titolo}</td>
-                            <td style={styles.td}>{item.note || '-'}</td>
-                            <td style={styles.td}>{item.completata ? 'Completata' : 'Da fare'}</td>
+                <button onClick={stampaAnnoIntero} style={styles.bottonePrimario}>
+                  Stampa anno intero
+                </button>
+
+                <button onClick={selezionaTuttiIMesi} style={styles.bottoneSecondario}>
+                  Seleziona tutti i mesi
+                </button>
+
+                <button onClick={() => setMesiDaStampare([])} style={styles.bottoneSecondario}>
+                  Deseleziona tutti
+                </button>
+              </div>
+            </section>
+          )}
+
+          {(vista === 'stampa-mesi' || vista === 'stampa-anno') && (
+            <section style={styles.stampaArea} className="print-section">
+              <div className="no-print" style={styles.rigaBottoni}>
+                <button onClick={() => setVista('stampa')} style={styles.bottoneSecondario}>
+                  Torna alla scelta stampa
+                </button>
+
+                <button onClick={() => window.print()} style={styles.bottoneStampa}>
+                  Stampa di nuovo
+                </button>
+              </div>
+
+              <h1 style={styles.titoloStampa}>
+                Scadenze {annoStampa}
+              </h1>
+
+              {mesiDaStampare.map(mese => {
+                const elementi = scadenzeDelMese(annoStampa, mese)
+
+                return (
+                  <div key={mese} className="mese-stampa" style={styles.meseStampa}>
+                    <h2 style={styles.nomeMeseStampa}>
+                      {mesiItaliani[mese]} {annoStampa}
+                    </h2>
+
+                    {elementi.length === 0 ? (
+                      <p style={styles.nessunaStampa}>Nessuna scadenza.</p>
+                    ) : (
+                      <table style={styles.tabella}>
+                        <thead>
+                          <tr>
+                            <th style={styles.th}>Data</th>
+                            <th style={styles.th}>Scadenza</th>
+                            <th style={styles.th}>Note</th>
+                            <th style={styles.th}>Stato</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )
-            })}
-          </section>
-        )}
+                        </thead>
+                        <tbody>
+                          {elementi.map(item => (
+                            <tr key={item.id}>
+                              <td style={styles.td}>{dataItaliana(item.data)}</td>
+                              <td style={styles.td}>{item.titolo}</td>
+                              <td style={styles.td}>{item.note || '-'}</td>
+                              <td style={styles.td}>{item.completata ? 'Completata' : 'Da fare'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )
+              })}
+            </section>
+          )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 }
 
 const styles = {
