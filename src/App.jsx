@@ -338,7 +338,7 @@ function App() {
         <div style={styles.pagina}>
           <div style={styles.contenitore}>
             <section style={styles.card}>
-              <h1 style={styles.titolo}>Le mie scadenze</h1>
+              <h1 style={styles.titolo}>Le mie scadenze TEST</h1>
               <p style={styles.sottotitolo}>
                 Accedi con la tua email per sincronizzare le scadenze.
               </p>
