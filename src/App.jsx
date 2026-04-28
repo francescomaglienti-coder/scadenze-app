@@ -15,6 +15,8 @@ function App() {
   const [utenti, setUtenti] = useState([])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [nuovaPassword, setNuovaPassword] = useState('')
+  const [modalitaReset, setModalitaReset] = useState(false)
   const [mostraPassword, setMostraPassword] = useState(false)
 
   const [scadenze, setScadenze] = useState([])
@@ -31,8 +33,12 @@ function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setModalitaReset(true)
+      }
     })
 
     return () => listener.subscription.unsubscribe()
@@ -80,6 +86,32 @@ function App() {
 
     if (error) alert('Errore reset password: ' + error.message)
     else alert('Ti ho inviato una email per reimpostare la password.')
+  }
+
+  async function salvaNuovaPassword() {
+    if (!nuovaPassword) {
+      alert('Inserisci la nuova password')
+      return
+    }
+
+    if (nuovaPassword.length < 6) {
+      alert('La password deve avere almeno 6 caratteri')
+      return
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: nuovaPassword
+    })
+
+    if (error) {
+      alert('Errore aggiornamento password: ' + error.message)
+      return
+    }
+
+    alert('Password aggiornata correttamente. Ora puoi usare la nuova password.')
+
+    setNuovaPassword('')
+    setModalitaReset(false)
   }
 
   async function esci() {
@@ -354,6 +386,39 @@ function App() {
     }
 
     return giorni
+  }
+
+  if (modalitaReset) {
+    return (
+      <div style={styles.pagina}>
+        <div style={styles.card}>
+          <h1 style={styles.titolo}>Crea nuova password</h1>
+          <p style={styles.testo}>
+            Inserisci una nuova password per il tuo account.
+          </p>
+
+          <input
+            type={mostraPassword ? 'text' : 'password'}
+            placeholder="Nuova password"
+            value={nuovaPassword}
+            onChange={e => setNuovaPassword(e.target.value)}
+            style={styles.input}
+          />
+
+          <button
+            type="button"
+            onClick={() => setMostraPassword(!mostraPassword)}
+            style={styles.bottoneSecondario}
+          >
+            {mostraPassword ? 'Nascondi password' : 'Mostra password'}
+          </button>
+
+          <button onClick={salvaNuovaPassword} style={styles.bottonePrimario}>
+            Salva nuova password
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (!session) {
